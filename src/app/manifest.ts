@@ -12,12 +12,6 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#d97706",
     icons: [
       {
-        src: "/window.svg",
-        sizes: "any",
-        type: "image/svg+xml",
-        purpose: "maskable",
-      },
-      {
         src: "/icon-192x192.png",
         sizes: "192x192",
         type: "image/png",
@@ -26,9 +20,24 @@ export default function manifest(): MetadataRoute.Manifest {
         src: "/icon-512x512.png",
         sizes: "512x512",
         type: "image/png",
+        purpose: "maskable",
       },
     ],
     scope: "/",
     categories: ["education", "entertainment"],
+    screenshots: [
+      {
+        src: "/screenshot-mobile.png",
+        sizes: "390x844",
+        type: "image/png",
+        form_factor: "narrow",
+      },
+      {
+        src: "/screenshot-wide.png",
+        sizes: "1280x720",
+        type: "image/png",
+        form_factor: "wide",
+      },
+    ],
   };
 }

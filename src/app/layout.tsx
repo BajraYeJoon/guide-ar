@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { SerwistProvider } from "@serwist/turbopack/react";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { SyncProvider } from "@/components/SyncProvider";
 import "./globals.css";
@@ -17,8 +18,16 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "WebAR Temple Guide",
   description: "Explore sacred temples in Nepal through Web-based Augmented Reality and interactive audio guides.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "AR Guide",
+  },
 };
 
+export const viewport: Viewport = {
+  themeColor: "#d97706",
+};
 
 export default function RootLayout({
   children,
@@ -30,9 +39,12 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head />
       <body className="min-h-full flex flex-col">
         <OfflineBanner />
-        <SyncProvider>{children}</SyncProvider>
+        <SerwistProvider swUrl="/serwist/sw.js">
+          <SyncProvider>{children}</SyncProvider>
+        </SerwistProvider>
       </body>
     </html>
   );
