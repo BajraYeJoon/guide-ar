@@ -33,7 +33,6 @@ export async function syncAllData(): Promise<void> {
 }
 
 export function startAutoSync(intervalMs: number = 5 * 60 * 1000): () => void {
-  syncAllData();
   const interval = setInterval(syncAllData, intervalMs);
   return () => clearInterval(interval);
 }

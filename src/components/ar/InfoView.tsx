@@ -1,16 +1,18 @@
 "use client";
 
 import React from "react";
-import { TARGETS, TargetInfo } from "@/data/targets";
+import { TargetInfo } from "@/data/targets";
 import { Radio } from "lucide-react";
 
 interface InfoViewProps {
+  targets: TargetInfo[];
   selectedTarget: TargetInfo;
   onSelectTarget: (target: TargetInfo) => void;
   onStartAR: () => void;
 }
 
 export function InfoView({
+  targets,
   selectedTarget,
   onSelectTarget,
   onStartAR,
@@ -33,7 +35,7 @@ export function InfoView({
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         {/* Target selector */}
         <div className="flex gap-2 overflow-x-auto pb-2">
-          {TARGETS.map((target) => (
+          {targets.map((target) => (
             <button
               key={target.id}
               onClick={() => onSelectTarget(target)}

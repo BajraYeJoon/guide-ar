@@ -32,7 +32,7 @@ export interface StoredCategory {
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
-function getDB() {
+export function getDB() {
   if (!dbPromise) {
     dbPromise = openDB(DB_NAME, DB_VERSION, {
       upgrade(db) {
@@ -151,4 +151,9 @@ export async function syncCategories(categories: StoredCategory[]): Promise<void
     ...categories.map((cat) => tx.store.put({ ...cat, lastUpdated: Date.now() })),
     tx.done,
   ]);
+}
+
+export async function countObjects(): Promise<number> {
+  const db = await getDB();
+  return db.count("objects");
 }

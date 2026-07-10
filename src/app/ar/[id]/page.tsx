@@ -2,13 +2,14 @@
 
 import React from "react";
 import { useParams, useRouter } from "next/navigation";
-import { TARGETS } from "@/data/targets";
+import { useObjects } from "@/hooks/useObjects";
 import { ArrowLeft, MapPin } from "lucide-react";
 
 export default function TargetDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const target = TARGETS.find((t) => t.id === params.id);
+  const objects = useObjects();
+  const target = objects.find((t) => t.id === params.id);
 
   if (!target) {
     return (
@@ -29,7 +30,6 @@ export default function TargetDetailPage() {
 
   return (
     <div className="w-full min-h-screen bg-zinc-950 text-zinc-100 font-sans">
-      {/* Header */}
       <div className="sticky top-0 z-10 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
           <button
@@ -42,9 +42,7 @@ export default function TargetDetailPage() {
         </div>
       </div>
 
-      {/* Content */}
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Image */}
         <div className="rounded-2xl overflow-hidden border border-zinc-800">
           <img
             src={target.referenceImage}
@@ -53,7 +51,6 @@ export default function TargetDetailPage() {
           />
         </div>
 
-        {/* Name & Description */}
         <div>
           <h2 className="text-2xl font-extrabold text-white mb-2">
             {target.name}
@@ -63,7 +60,6 @@ export default function TargetDetailPage() {
           </p>
         </div>
 
-        {/* Specs */}
         <div>
           <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider mb-3">
             Specifications
@@ -85,7 +81,6 @@ export default function TargetDetailPage() {
           </div>
         </div>
 
-        {/* History */}
         <div>
           <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider mb-3">
             History & Background
@@ -95,7 +90,6 @@ export default function TargetDetailPage() {
           </p>
         </div>
 
-        {/* Back button */}
         <button
           onClick={() => router.back()}
           className="w-full py-3 rounded-xl bg-amber-500 text-zinc-950 font-bold text-sm hover:bg-amber-400 transition-colors flex items-center justify-center gap-2"
