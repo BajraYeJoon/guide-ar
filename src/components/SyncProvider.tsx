@@ -17,6 +17,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             history: t.history,
             specs: Object.fromEntries(t.specs.map((s) => [s.label, s.value])),
             imageUrl: t.referenceImage,
+            lastUpdated: Date.now(),
           });
         });
       }
