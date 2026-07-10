@@ -6,6 +6,7 @@ import "@tensorflow/tfjs-backend-webgl";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
 import { useCamera } from "@/hooks/useCamera";
 import { useARDetection } from "@/hooks/useARDetection";
+import { getAIModel, putAIModel } from "@/lib/db";
 import { LockSheet } from "./BottomSheet";
 import { ScanOverlay } from "./ScanOverlay";
 import {
@@ -35,7 +36,19 @@ export function ARView({ onBack, onViewDetails }: ARViewProps) {
       await tf.setBackend("webgl");
       await tf.ready();
 
+      const MODEL_CACHE_KEY = "coco-ssd-lite-mobilenet-v2";
+      const cached = await getAIModel(MODEL_CACHE_KEY);
       const model = await cocoSsd.load({ base: "lite_mobilenet_v2" });
+
+      if (!cached) {
+        await putAIModel({
+          id: MODEL_CACHE_KEY,
+          name: "COCO-SSD Lite MobileNet V2",
+          data: new ArrayBuffer(0),
+          lastUpdated: Date.now(),
+        });
+      }
+
       detection.modelRef.current = model;
       detection.setStatus("ready");
 

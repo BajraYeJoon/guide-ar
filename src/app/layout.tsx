@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { SyncProvider } from "@/components/SyncProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,7 +30,10 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <OfflineBanner />
+        <SyncProvider>{children}</SyncProvider>
+      </body>
     </html>
   );
 }
