@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { TARGETS } from "@/data/targets";
 import { InfoView } from "@/components/ar/InfoView";
 import { ARView } from "@/components/ar/ARView";
@@ -12,6 +12,7 @@ export default function ARPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("info");
   const [selectedTarget, setSelectedTarget] = useState(TARGETS[0]);
   const [detailTargetId, setDetailTargetId] = useState<string | null>(null);
+  const [resumeCount, setResumeCount] = useState(0);
 
   const handleStartAR = () => setViewMode("ar");
   const handleBackToInfo = () => setViewMode("info");
@@ -24,6 +25,7 @@ export default function ARPage() {
   const handleBackToAR = () => {
     setDetailTargetId(null);
     setViewMode("ar");
+    setResumeCount((c) => c + 1);
   };
 
   return (
@@ -42,6 +44,7 @@ export default function ARPage() {
           <ARView
             onBack={handleBackToInfo}
             onViewDetails={handleViewDetails}
+            resumeKey={resumeCount}
           />
         </div>
       )}

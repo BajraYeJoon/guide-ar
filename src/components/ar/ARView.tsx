@@ -18,9 +18,10 @@ import {
 interface ARViewProps {
   onBack: () => void;
   onViewDetails: (targetId: string) => void;
+  resumeKey?: number;
 }
 
-export function ARView({ onBack, onViewDetails }: ARViewProps) {
+export function ARView({ onBack, onViewDetails, resumeKey }: ARViewProps) {
   const camera = useCamera();
   const detection = useARDetection(
     camera.videoRef,
@@ -61,6 +62,14 @@ export function ARView({ onBack, onViewDetails }: ARViewProps) {
       detection.detectFrame();
     }
   }, [camera.isPaused, detection.status]);
+
+  // Resume camera when coming back from detail view
+  useEffect(() => {
+    if (resumeKey && resumeKey > 0 && camera.isPaused) {
+      camera.resume();
+      detection.setStatus("scanning");
+    }
+  }, [resumeKey]);
 
   const handleBack = () => {
     camera.stop();
