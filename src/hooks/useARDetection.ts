@@ -108,22 +108,19 @@ export function useARDetection(
         if (bestMatch && bestBbox && ctx) {
           const { x, y, w } = bestBbox;
           const label = bestMatch.name;
-          const confidence = `${Math.round(bestScore * 100)}%`;
 
           // Measure text
-          ctx.font = "bold 18px sans-serif";
+          ctx.font = "bold 24px sans-serif";
           const labelWidth = ctx.measureText(label).width;
-          ctx.font = "12px sans-serif";
-          const confWidth = ctx.measureText(confidence).width;
-          const pillWidth = Math.max(labelWidth, confWidth) + 24;
-          const pillHeight = 48;
+          const pillWidth = labelWidth + 32;
+          const pillHeight = 44;
           const pillX = x + w / 2 - pillWidth / 2;
           const pillY = y - pillHeight - 12;
 
           // Pill background
           ctx.fillStyle = "rgba(245, 158, 11, 0.9)";
           ctx.beginPath();
-          ctx.roundRect(pillX, pillY, pillWidth, pillHeight, 10);
+          ctx.roundRect(pillX, pillY, pillWidth, pillHeight, 12);
           ctx.fill();
 
           // Connecting line
@@ -136,13 +133,9 @@ export function useARDetection(
 
           // Label text
           ctx.fillStyle = "#000";
-          ctx.font = "bold 14px sans-serif";
+          ctx.font = "bold 22px sans-serif";
           ctx.textAlign = "center";
-          ctx.fillText(label, pillX + pillWidth / 2, pillY + 22);
-
-          // Confidence text
-          ctx.font = "11px sans-serif";
-          ctx.fillText(confidence, pillX + pillWidth / 2, pillY + 38);
+          ctx.fillText(label, pillX + pillWidth / 2, pillY + 29);
           ctx.textAlign = "left";
 
           setBbox(bestBbox);

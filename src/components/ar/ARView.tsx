@@ -4,7 +4,6 @@ import React, { useEffect, useCallback } from "react";
 import * as tf from "@tensorflow/tfjs";
 import "@tensorflow/tfjs-backend-webgl";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
-import { useRouter } from "next/navigation";
 import { useCamera } from "@/hooks/useCamera";
 import { useARDetection } from "@/hooks/useARDetection";
 import { LockSheet } from "./BottomSheet";
@@ -18,10 +17,10 @@ import {
 
 interface ARViewProps {
   onBack: () => void;
+  onViewDetails: (targetId: string) => void;
 }
 
-export function ARView({ onBack }: ARViewProps) {
-  const router = useRouter();
+export function ARView({ onBack, onViewDetails }: ARViewProps) {
   const camera = useCamera();
   const detection = useARDetection(
     camera.videoRef,
@@ -72,12 +71,17 @@ export function ARView({ onBack }: ARViewProps) {
   const handleViewDetails = () => {
     if (detection.foundTarget) {
       camera.pause();
-      router.push(`/ar/${detection.foundTarget.id}`);
+      onViewDetails(detection.foundTarget.id);
     }
   };
 
+  const handleResumeFromDetail = () => {
+    camera.resume();
+    detection.setStatus("scanning");
+  };
+
   return (
-    <div className="w-full h-screen bg-black text-zinc-100 relative overflow-hidden font-sans select-none flex flex-col">
+    <div className="w-full h-dvh bg-black text-zinc-100 relative overflow-hidden font-sans select-none flex flex-col">
       {/* Camera feed */}
       <video
         ref={camera.videoRef}

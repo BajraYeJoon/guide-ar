@@ -97,7 +97,6 @@ export function StatusBar({ status, onBack }: StatusBarProps) {
         {status === "ready" && "Engine ready!"}
         {status === "camera-denied" && "Camera required"}
         {status === "scanning" && "Scanning..."}
-        {status === "found" && "Locked!"}
       </div>
     </div>
   );
