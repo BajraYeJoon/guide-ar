@@ -1,11 +1,4 @@
-import { TargetInfo } from "@/data/targets";
-
-// Map COCO-SSD class names to our target IDs
-export const CLASS_TO_TARGET: Record<string, string> = {
-  mouse: "mouse",
-  bottle: "bottle",
-  cup: "bottle",
-};
+import type { TargetInfo } from "@/lib/types";
 
 // Stabilization thresholds (consecutive frames)
 export const LOCK_THRESHOLD = 3;
@@ -21,12 +14,15 @@ export const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
   audio: false,
 };
 
-// Find target by COCO-SSD class name
+// Find the target whose configured COCO-SSD detection classes contain the
+// detected class name. Targets are dynamic (Convex / IndexedDB), so the
+// mapping lives on each target document.
 export function findTargetByClass(
   className: string,
   targets: TargetInfo[]
 ): TargetInfo | null {
-  const targetId = CLASS_TO_TARGET[className];
-  if (!targetId) return null;
-  return targets.find((t) => t.id === targetId) ?? null;
+  return (
+    targets.find((target) => target.detectionClasses.includes(className)) ??
+    null
+  );
 }

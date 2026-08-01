@@ -40,4 +40,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# generated service worker artifacts (rebuilt by Serwist on every build)
+public/sw.js
+public/workbox-*.js
+public/swe-worker-*.js
+public/serwist-*.js
+
 certificates

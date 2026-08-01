@@ -6,6 +6,7 @@ import "@tensorflow/tfjs-backend-webgl";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
 import { useCamera } from "@/hooks/useCamera";
 import { useARDetection } from "@/hooks/useARDetection";
+import { useTargets } from "@/hooks/useTargets";
 import { LockSheet } from "./BottomSheet";
 import { ScanOverlay } from "./ScanOverlay";
 import {
@@ -21,11 +22,13 @@ interface ARViewProps {
 }
 
 export function ARView({ onBack, onViewDetails }: ARViewProps) {
+  const { targets } = useTargets();
   const camera = useCamera();
   const detection = useARDetection(
     camera.videoRef,
     camera.canvasRef,
-    camera.isPaused
+    camera.isPaused,
+    targets
   );
 
   const initAR = useCallback(async () => {
@@ -71,7 +74,7 @@ export function ARView({ onBack, onViewDetails }: ARViewProps) {
   const handleViewDetails = () => {
     if (detection.foundTarget) {
       camera.stop();
-      onViewDetails(detection.foundTarget.id);
+      onViewDetails(detection.foundTarget._id);
     }
   };
 

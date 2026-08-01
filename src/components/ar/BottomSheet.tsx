@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { TargetInfo } from "@/data/targets";
+import type { TargetInfo } from "@/lib/types";
 import { Sparkles, ChevronRight } from "lucide-react";
 
 interface LockSheetProps {

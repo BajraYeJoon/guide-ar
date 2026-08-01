@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect } from "react";
-import { TARGETS, TargetInfo } from "@/data/targets";
+import type * as cocoSsd from "@tensorflow-models/coco-ssd";
+import type { TargetInfo } from "@/lib/types";
 import {
   findTargetByClass,
   LOCK_THRESHOLD,
@@ -22,7 +23,7 @@ interface UseARDetectionReturn {
   foundTarget: TargetInfo | null;
   setFoundTarget: React.Dispatch<React.SetStateAction<TargetInfo | null>>;
   bbox: { x: number; y: number; w: number; h: number } | null;
-  modelRef: React.MutableRefObject<any | null>;
+  modelRef: React.MutableRefObject<cocoSsd.ObjectDetection | null>;
   detectFrame: () => void;
   reset: () => void;
 }
@@ -30,10 +31,11 @@ interface UseARDetectionReturn {
 export function useARDetection(
   videoRef: React.RefObject<HTMLVideoElement | null>,
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
-  cameraPaused: boolean
+  cameraPaused: boolean,
+  targets: TargetInfo[]
 ): UseARDetectionReturn {
   const animationFrameRef = useRef<number | null>(null);
-  const modelRef = useRef<any | null>(null);
+  const modelRef = useRef<cocoSsd.ObjectDetection | null>(null);
 
   const detectCountRef = useRef(0);
   const missCountRef = useRef(0);
@@ -55,7 +57,7 @@ export function useARDetection(
     setBbox(null);
   }, []);
 
-  const detectFrame = useCallback(() => {
+  const detectFrame = useCallback(function detectFrame() {
     if (
       !videoRef.current ||
       !canvasRef.current ||
@@ -87,14 +89,14 @@ export function useARDetection(
 
       ctx?.clearRect(0, 0, canvas.width, canvas.height);
 
-      modelRef.current.detect(video).then((predictions: any[]) => {
+      modelRef.current.detect(video).then((predictions: cocoSsd.DetectedObject[]) => {
         let bestMatch: TargetInfo | null = null;
         let bestScore = 0;
         let bestBbox: { x: number; y: number; w: number; h: number } | null = null;
 
         for (const prediction of predictions) {
           if (prediction.score > 0.5) {
-            const target = findTargetByClass(prediction.class, TARGETS);
+            const target = findTargetByClass(prediction.class, targets);
             if (target && prediction.score > bestScore) {
               bestMatch = target;
               bestScore = prediction.score;
@@ -145,11 +147,11 @@ export function useARDetection(
 
         // Stabilization
         if (bestMatch) {
-          if (lastDetectedIdRef.current === bestMatch.id) {
+          if (lastDetectedIdRef.current === bestMatch._id) {
             detectCountRef.current++;
             missCountRef.current = 0;
           } else {
-            lastDetectedIdRef.current = bestMatch.id;
+            lastDetectedIdRef.current = bestMatch._id;
             detectCountRef.current = 1;
             missCountRef.current = 0;
           }
@@ -157,7 +159,7 @@ export function useARDetection(
           if (detectCountRef.current >= LOCK_THRESHOLD) {
             setStatus((prev) => (prev !== "found" ? "found" : prev));
             setFoundTarget((prev) =>
-              prev?.id !== bestMatch!.id ? bestMatch : prev
+              prev?._id !== bestMatch!._id ? bestMatch : prev
             );
           }
         } else {
@@ -181,7 +183,7 @@ export function useARDetection(
     } else {
       animationFrameRef.current = requestAnimationFrame(detectFrame);
     }
-  }, [videoRef, canvasRef, cameraPaused]);
+  }, [videoRef, canvasRef, cameraPaused, targets]);
 
   useEffect(() => {
     return () => {

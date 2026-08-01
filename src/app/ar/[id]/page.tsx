@@ -2,13 +2,14 @@
 
 import React from "react";
 import { useParams, useRouter } from "next/navigation";
-import { TARGETS } from "@/data/targets";
+import { useTargets } from "@/hooks/useTargets";
 import { ArrowLeft, MapPin } from "lucide-react";
 
 export default function TargetDetailPage() {
-  const params = useParams();
+  const params = useParams<{ id: string }>();
   const router = useRouter();
-  const target = TARGETS.find((t) => t.id === params.id);
+  const { targets } = useTargets();
+  const target = targets.find((t) => t._id === params.id);
 
   if (!target) {
     return (
@@ -46,11 +47,17 @@ export default function TargetDetailPage() {
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         {/* Image */}
         <div className="rounded-2xl overflow-hidden border border-zinc-800">
-          <img
-            src={target.referenceImage}
-            alt={target.name}
-            className="w-full aspect-video object-cover"
-          />
+          {target.imageUrl ? (
+            <img
+              src={target.imageUrl}
+              alt={target.name}
+              className="w-full aspect-video object-cover"
+            />
+          ) : (
+            <div className="w-full aspect-video bg-zinc-800 flex items-center justify-center">
+              <span className="text-sm text-zinc-500">No image</span>
+            </div>
+          )}
         </div>
 
         {/* Name & Description */}

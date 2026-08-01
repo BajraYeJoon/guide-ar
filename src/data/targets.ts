@@ -1,21 +1,17 @@
-export interface TargetInfo {
-  id: string;
-  name: string;
-  description: string;
-  referenceImage: string; // path to the reference image in /public
-  mindFile: string; // path to the compiled .mind file in /public
-  specs: { label: string; value: string }[];
-  history: string;
-}
+import type { TargetInfo } from "@/lib/types";
 
-export const TARGETS: TargetInfo[] = [
+// Fallback data used ONLY when the device has never synced from Convex and is
+// offline. As soon as the app connects once, Convex data replaces this and is
+// cached in IndexedDB for offline use.
+export const STATIC_TARGETS: TargetInfo[] = [
   {
-    id: "mouse",
+    _id: "mouse",
     name: "Wireless Optical Mouse",
     description:
       "A modern wireless computer mouse with ergonomic design, high-precision optical tracking, and long battery life.",
     referenceImage: "/targets/mouse-reference.jpg",
-    mindFile: "/targets/mouse.mind",
+    imageUrl: "/targets/mouse-reference.jpg",
+    detectionClasses: ["mouse"],
     specs: [
       { label: "Sensor", value: "16,000 DPI Optical" },
       { label: "Battery", value: "70 hrs (Li-ion)" },
@@ -26,14 +22,16 @@ export const TARGETS: TargetInfo[] = [
     ],
     history:
       "The computer mouse was invented by Douglas Engelbart in 1964 at the Stanford Research Institute. The original was carved from wood with a single button and two perpendicular wheels. Modern wireless mice use laser or optical sensors capable of tracking at 16,000+ DPI on virtually any surface.",
+    updatedAt: 0,
   },
   {
-    id: "bottle",
+    _id: "bottle",
     name: "Water Bottle",
     description:
       "A standard plastic water bottle with a screw cap, commonly used for hydration.",
     referenceImage: "/targets/bottle.jpg",
-    mindFile: "/targets/bottle.mind",
+    imageUrl: "/targets/bottle.jpg",
+    detectionClasses: ["bottle", "cup"],
     specs: [
       { label: "Capacity", value: "500 ml" },
       { label: "Material", value: "PET Plastic" },
@@ -44,5 +42,6 @@ export const TARGETS: TargetInfo[] = [
     ],
     history:
       "Plastic bottles became popular in the 1970s as a lightweight alternative to glass. PET plastic is the most common material for water bottles due to its clarity, strength, and recyclability. Over 1 million plastic bottles are purchased every minute worldwide.",
+    updatedAt: 0,
   },
 ];
