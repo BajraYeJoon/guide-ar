@@ -70,7 +70,6 @@ export const create = mutation({
     content: v.optional(v.string()),
     history: v.optional(v.string()),
     specs: v.optional(v.array(specValidator)),
-    detectionClasses: v.array(v.string()),
     imageStorageId: v.optional(v.id("_storage")),
     referenceImage: v.optional(v.string()),
   },
@@ -87,7 +86,6 @@ export const update = mutation({
     content: v.optional(v.string()),
     history: v.optional(v.string()),
     specs: v.optional(v.array(specValidator)),
-    detectionClasses: v.array(v.string()),
     imageStorageId: v.optional(v.id("_storage")),
     referenceImage: v.optional(v.string()),
   },
@@ -146,7 +144,6 @@ export const seed = mutation({
           { label: "Buttons", value: "6 programmable" },
           { label: "Connection", value: "USB-C / BT 5.0" },
         ],
-        detectionClasses: ["mouse"],
         referenceImage: "/targets/mouse-reference.jpg",
       },
       {
@@ -163,7 +160,6 @@ export const seed = mutation({
           { label: "Cap", value: "Screw-on" },
           { label: "Recyclable", value: "Yes" },
         ],
-        detectionClasses: ["bottle", "cup"],
         referenceImage: "/targets/bottle.jpg",
       },
     ];
@@ -172,5 +168,52 @@ export const seed = mutation({
       await ctx.db.insert("targets", { ...demo, updatedAt: Date.now() });
     }
     return { seeded: true };
+  },
+});
+
+// ---------------------------------------------------------------- AR bundle
+
+// Read the current compiled MindAR tracking bundle (singleton), resolving the
+// stored `.mind` file to a servable URL. Returns null before the first build.
+export const getArBundle = query({
+  args: {},
+  handler: async (ctx) => {
+    const doc = await ctx.db.query("arBundle").first();
+    if (!doc) return null;
+    const mindUrl = await ctx.storage.getUrl(doc.mindStorageId);
+    return {
+      mindStorageId: doc.mindStorageId,
+      targetIds: doc.targetIds,
+      updatedAt: doc.updatedAt,
+      mindUrl,
+    };
+  },
+});
+
+// Upsert the compiled tracking bundle produced by the admin "Build AR tracking"
+// action. Deletes the previously stored `.mind` file to avoid orphans.
+export const saveArBundle = mutation({
+  args: {
+    mindStorageId: v.id("_storage"),
+    targetIds: v.array(v.string()),
+  },
+  handler: async (ctx, { mindStorageId, targetIds }) => {
+    const existing = await ctx.db.query("arBundle").first();
+    if (existing) {
+      if (existing.mindStorageId !== mindStorageId) {
+        await ctx.storage.delete(existing.mindStorageId);
+      }
+      await ctx.db.patch(existing._id, {
+        mindStorageId,
+        targetIds,
+        updatedAt: Date.now(),
+      });
+      return existing._id;
+    }
+    return await ctx.db.insert("arBundle", {
+      mindStorageId,
+      targetIds,
+      updatedAt: Date.now(),
+    });
   },
 });

@@ -21,20 +21,29 @@ export default defineSchema({
     history: v.optional(v.string()),
     specs: v.optional(v.array(specValidator)),
 
-    // COCO-SSD class names that should resolve to this target during live AR
-    // detection (e.g. ["mouse"] or ["bottle", "cup"]). This is what makes an
-    // admin-created target actually detectable by the camera.
-    detectionClasses: v.array(v.string()),
+    // DEPRECATED: COCO-SSD class names. The app now uses MindAR image tracking
+    // (the reference image itself is the tracking target), so this is no longer
+    // written or read. Kept optional purely so pre-existing documents validate.
+    detectionClasses: v.optional(v.array(v.string())),
 
-    // Image is stored in Convex file storage. `imageStorageId` is the source of
-    // truth; `referenceImage` is an optional fallback path for data migrated
-    // from the old static /public/targets/* files.
+    // The reference image is stored in Convex file storage and doubles as the
+    // MindAR tracking target. `imageStorageId` is the source of truth;
+    // `referenceImage` is an optional fallback path for data migrated from the
+    // old static /public/targets/* files.
     imageStorageId: v.optional(v.id("_storage")),
     referenceImage: v.optional(v.string()),
 
     // Monotonic marker used by the offline client to detect changes.
     updatedAt: v.number(),
-  })
-    // Look up a target by a detection class name during AR scanning.
-    .index("by_updatedAt", ["updatedAt"]),
+  }).index("by_updatedAt", ["updatedAt"]),
+
+  // Singleton row holding the compiled MindAR tracking bundle. The admin's
+  // "Build AR tracking" action compiles every target's reference image into one
+  // `.mind` file (stored in file storage) and records the exact compile order
+  // in `targetIds` — index `i` in the bundle maps to `targetIds[i]`.
+  arBundle: defineTable({
+    mindStorageId: v.id("_storage"),
+    targetIds: v.array(v.string()),
+    updatedAt: v.number(),
+  }),
 });

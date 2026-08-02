@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useCamera } from "@/hooks/useCamera";
-import { useARDetection } from "@/hooks/useARDetection";
+import React, { useState } from "react";
+import { useMindARTracking } from "@/hooks/useMindARTracking";
 import { useTargets } from "@/hooks/useTargets";
+import { useArBundle } from "@/hooks/useArBundle";
 import { LockSheet } from "./BottomSheet";
 import { ScanOverlay } from "./ScanOverlay";
 import { TargetDetail } from "./TargetDetail";
@@ -14,49 +14,28 @@ interface ARViewProps {
 }
 
 /**
- * Live AR experience. The camera starts immediately and the detection model
- * loads in parallel (progressive startup). Tapping a locked target opens the
- * detail view as an in-place overlay: detection pauses but the camera and model
- * stay mounted, so returning is instant with no reload / blank-scanner flash.
+ * Live AR experience powered by MindAR image tracking. MindAR owns the camera
+ * and injects its own <video>/<canvas> into the container div; when it locks
+ * onto a target's reference image it fires found/lost events that drive the
+ * lock sheet. Tapping a locked target opens the detail view as an in-place
+ * overlay: tracking pauses (but stays mounted) so returning is instant with no
+ * blank-scanner flash.
  */
 export function ARView({ onBack }: ARViewProps) {
   const { targets } = useTargets();
-  const camera = useCamera();
+  const { bundle, loading: bundleLoading } = useArBundle();
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [cameraError, setCameraError] = useState(false);
 
   const detailOpen = detailId !== null;
-  const detection = useARDetection(
-    camera.videoRef,
-    camera.canvasRef,
-    detailOpen, // pause detection while the detail overlay is open
-    targets
+  const tracking = useMindARTracking(
+    containerRef,
+    detailOpen, // pause updates while the detail overlay is open
+    targets,
+    bundle
   );
 
-  // Start the camera as soon as the view mounts (independent of model load).
-  useEffect(() => {
-    let cancelled = false;
-    camera.start().catch(() => {
-      if (!cancelled) setCameraError(true);
-    });
-    return () => {
-      cancelled = true;
-      camera.stop();
-    };
-    // camera is a stable ref-based object; run once on mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Pause/resume the actual camera track alongside the detail overlay so we
-  // aren't decoding video frames behind an opaque page.
-  useEffect(() => {
-    if (detailOpen) camera.pause();
-    else camera.resume();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detailOpen]);
-
   const handleBack = () => {
-    camera.stop();
     onBack();
   };
 
@@ -64,51 +43,62 @@ export function ARView({ onBack }: ARViewProps) {
     ? targets.find((t) => t._id === detailId) ?? null
     : null;
 
-  const denied = cameraError || detection.error;
+  const denied = tracking.error;
+
+  // No compiled tracking bundle yet — guide the user instead of a dead scanner.
+  const notBuilt =
+    !bundleLoading && (!bundle || bundle.targetIds.length === 0);
 
   return (
     <div className="w-full h-dvh bg-black text-zinc-100 relative overflow-hidden font-sans select-none flex flex-col">
-      {/* Camera feed */}
-      <video
-        ref={camera.videoRef}
-        autoPlay
-        playsInline
-        muted
-        className="absolute inset-0 w-full h-full object-cover z-0"
-      />
-
-      {/* Detection label overlay */}
-      <canvas
-        ref={camera.canvasRef}
-        className="absolute inset-0 w-full h-full object-cover z-10 pointer-events-none"
-      />
+      {/* MindAR mounts its camera video + canvas inside this container. */}
+      <div ref={containerRef} className="absolute inset-0 w-full h-full z-0" />
 
       {/* Top status bar */}
       <StatusBar
-        status={denied ? "camera-denied" : detection.status}
+        status={denied ? "camera-denied" : tracking.status}
         onBack={handleBack}
       />
 
-      {/* Progressive, non-blocking "preparing detection" chip */}
-      {!denied && detection.status === "loading" && <PreparingChip />}
+      {/* Progressive, non-blocking "preparing" chip while MindAR starts up */}
+      {!denied && !notBuilt && tracking.status === "loading" && <PreparingChip />}
 
-      {/* Camera / model failure */}
+      {/* Camera / tracking failure */}
       {denied && <CameraDeniedOverlay onBack={handleBack} />}
 
+      {/* Tracking not built yet */}
+      {!denied && notBuilt && (
+        <div className="absolute inset-0 z-40 bg-zinc-950/95 flex flex-col items-center justify-center text-center p-6">
+          <h1 className="text-lg font-extrabold text-white">
+            AR tracking not ready
+          </h1>
+          <p className="text-xs text-zinc-400 mt-2 max-w-xs leading-relaxed">
+            No objects have been prepared for the camera yet. Ask an admin to add
+            reference images and tap “Build AR tracking”.
+          </p>
+          <button
+            onClick={handleBack}
+            className="mt-4 px-6 py-2.5 rounded-xl bg-amber-500 text-zinc-950 font-bold text-sm hover:bg-amber-400 transition-all"
+          >
+            Back
+          </button>
+        </div>
+      )}
+
       {/* Scan reticle while searching */}
-      {!denied && detection.status === "scanning" && <ScanOverlay />}
+      {!denied && !notBuilt && tracking.status === "scanning" && <ScanOverlay />}
 
       {/* Lock sheet — shows when a target is found */}
       {!detailOpen && (
         <LockSheet
-          foundTarget={detection.foundTarget}
+          foundTarget={tracking.foundTarget}
           onViewDetails={() =>
-            detection.foundTarget && setDetailId(detection.foundTarget._id)
+            tracking.foundTarget && setDetailId(tracking.foundTarget._id)
           }
         />
       )}
 
-      {/* In-place detail overlay — camera & model stay alive underneath */}
+      {/* In-place detail overlay — camera & tracking stay alive underneath */}
       {detailOpen && detailTarget && (
         <div className="absolute inset-0 z-[60] overflow-y-auto animate-fadeIn">
           <TargetDetail

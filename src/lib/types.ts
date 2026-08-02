@@ -17,8 +17,8 @@ export interface TargetInfo {
   history?: string;
   /** Legacy key/value facts; superseded by `content` for new targets. */
   specs?: TargetSpec[];
-  /** COCO-SSD class names that resolve to this target during live AR. */
-  detectionClasses: string[];
+  /** DEPRECATED COCO-SSD class names — unused since the switch to MindAR. */
+  detectionClasses?: string[];
   /** Convex file storage id, when the image is stored in Convex. */
   imageStorageId?: string | null;
   /** Fallback path for legacy static /public/targets/* images. */
@@ -26,5 +26,17 @@ export interface TargetInfo {
   /** Resolved image URL — remote Convex URL, static path, or an offline blob URL. */
   imageUrl: string | null;
   /** Monotonic marker used to detect changes. */
+  updatedAt: number;
+}
+
+/**
+ * The compiled MindAR tracking bundle. One `.mind` file contains every target's
+ * reference image; `targetIds[i]` is the target whose image was compiled at
+ * anchor index `i`. `mindUrl` is the servable (or offline blob) URL to load.
+ */
+export interface ArBundle {
+  mindStorageId: string;
+  mindUrl: string | null;
+  targetIds: string[];
   updatedAt: number;
 }

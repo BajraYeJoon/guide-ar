@@ -13,9 +13,11 @@
     "@tensorflow/tfjs": "^4.22.0",
     "convex": "^1.43.0",
     "lucide-react": "^1.23.0",
+    "mind-ar": "^1.2.5",
     "next": "16.2.10",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@serwist/turbopack": "^9.5.12",
@@ -23,6 +25,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.185.3",
     "esbuild": "^0.28.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",

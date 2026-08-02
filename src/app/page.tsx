@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTargets } from "@/hooks/useTargets";
 import { InfoView } from "@/components/ar/InfoView";
-import { warmUpModel } from "@/lib/ar-engine";
+import { warmUpMindAR } from "@/lib/mindar-engine";
 import type { TargetInfo } from "@/lib/types";
 
 export default function HomePage() {
@@ -12,9 +12,9 @@ export default function HomePage() {
   const { targets, status, syncing, lastSyncedAt, refresh } = useTargets();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Warm up the detection model in the background so opening Live AR is instant.
+  // Warm up the MindAR runtime in the background so opening Live AR is instant.
   useEffect(() => {
-    warmUpModel();
+    warmUpMindAR();
   }, []);
 
   // Derive the active target instead of syncing state from props in an effect:

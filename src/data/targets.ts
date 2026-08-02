@@ -11,7 +11,6 @@ export const STATIC_TARGETS: TargetInfo[] = [
       "A modern wireless computer mouse with ergonomic design, high-precision optical tracking, and long battery life.",
     referenceImage: "/targets/mouse-reference.jpg",
     imageUrl: "/targets/mouse-reference.jpg",
-    detectionClasses: ["mouse"],
     specs: [
       { label: "Sensor", value: "16,000 DPI Optical" },
       { label: "Battery", value: "70 hrs (Li-ion)" },
@@ -31,7 +30,6 @@ export const STATIC_TARGETS: TargetInfo[] = [
       "A standard plastic water bottle with a screw cap, commonly used for hydration.",
     referenceImage: "/targets/bottle.jpg",
     imageUrl: "/targets/bottle.jpg",
-    detectionClasses: ["bottle", "cup"],
     specs: [
       { label: "Capacity", value: "500 ml" },
       { label: "Material", value: "PET Plastic" },

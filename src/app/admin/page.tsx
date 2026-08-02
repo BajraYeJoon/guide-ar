@@ -4,14 +4,14 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link";
 import {
   ArrowLeft,
-  ChevronDown,
+  Boxes,
   ImagePlus,
+  Loader2,
   Lock,
   LogOut,
   Plus,
   RefreshCw,
   Save,
-  Search,
   Sprout,
   Trash2,
   X,
@@ -19,9 +19,9 @@ import {
 import type { GenericId } from "convex/values";
 import { api } from "../../../convex/_generated/api";
 import { getConvex } from "@/lib/convex";
-import type { TargetInfo } from "@/lib/types";
+import type { ArBundle, TargetInfo } from "@/lib/types";
 import { RichEditor } from "@/components/ar/RichEditor";
-import { COCO_CLASSES } from "@/lib/coco-classes";
+import { loadMindARCompiler } from "@/lib/mindar-engine";
 
 const ADMIN_PASSWORD =
   process.env.NEXT_PUBLIC_ADMIN_PASSWORD ?? "guide-admin-2026";
@@ -89,84 +89,171 @@ function LoginGate({ onAuthed }: { onAuthed: () => void }) {
   );
 }
 
-// ------------------------------------------------------- detection picker
+// ------------------------------------------------------- build AR tracking
 
-// Friendly multi-select over the 80 COCO classes. Replaces the old hand-typed
-// comma-separated "detection classes" field so admins just tick what the
-// camera should recognize.
-function DetectionPicker({
-  selected,
-  onToggle,
+// Loads an image URL into a decoded HTMLImageElement. crossOrigin="anonymous"
+// is required so the pixels are readable by MindAR's compiler (Convex serves
+// the images with permissive CORS).
+function loadImageEl(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`Could not load image: ${url}`));
+    img.src = url;
+  });
+}
+
+// Compiles every target's reference image into a single MindAR `.mind` bundle
+// and uploads it to Convex. The anchor order in the bundle is exactly the order
+// of `trackable` here, which we persist as `targetIds` so the runtime can map
+// anchor index → target.
+function BuildTrackingPanel({
+  targets,
+  bundle,
+  onBuilt,
 }: {
-  selected: string[];
-  onToggle: (cls: string) => void;
+  targets: TargetInfo[];
+  bundle: ArBundle | null;
+  onBuilt: () => void;
 }) {
-  const [open, setOpen] = useState(selected.length > 0);
-  const [q, setQ] = useState("");
+  const [building, setBuilding] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return needle
-      ? COCO_CLASSES.filter((c) => c.includes(needle))
-      : COCO_CLASSES;
-  }, [q]);
+  // Only targets that have a usable reference image can be tracked.
+  const trackable = useMemo(
+    () => targets.filter((t) => !!t.imageUrl),
+    [targets]
+  );
+  const skipped = targets.length - trackable.length;
+
+  const build = async () => {
+    setBuilding(true);
+    setError(null);
+    setProgress(0);
+    try {
+      if (trackable.length === 0) {
+        throw new Error(
+          "No targets have a reference image. Add images first."
+        );
+      }
+
+      const images = await Promise.all(
+        trackable.map((t) => loadImageEl(t.imageUrl as string))
+      );
+
+      const { Compiler } = await loadMindARCompiler();
+      const compiler = new Compiler();
+      await compiler.compileImageTargets(images, (p: number) =>
+        setProgress(Math.round(p))
+      );
+      const exported = await compiler.exportData();
+      const blob = new Blob([exported as BlobPart], {
+        type: "application/octet-stream",
+      });
+
+      const convex = getConvex();
+      const uploadUrl = await convex.mutation(
+        api.targets.generateUploadUrl,
+        {}
+      );
+      const upload = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: blob,
+      });
+      if (!upload.ok) throw new Error("Bundle upload failed");
+      const { storageId } = (await upload.json()) as {
+        storageId: GenericId<"_storage">;
+      };
+
+      await convex.mutation(api.targets.saveArBundle, {
+        mindStorageId: storageId,
+        targetIds: trackable.map((t) => t._id),
+      });
+      onBuilt();
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : "Build failed");
+    } finally {
+      setBuilding(false);
+    }
+  };
+
+  const builtCount = bundle?.targetIds.length ?? 0;
+  const stale =
+    bundle !== null && builtCount !== trackable.length && !building;
 
   return (
-    <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-3 py-2.5 text-left"
-      >
-        <span className="text-xs font-medium text-zinc-400">
-          Advanced · camera detection
-          {selected.length > 0 && (
-            <span className="ml-2 text-amber-500">
-              {selected.length} selected
-            </span>
-          )}
-        </span>
-        <ChevronDown
-          className={`w-4 h-4 text-zinc-500 transition-transform ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-
-      {open && (
-        <div className="px-3 pb-3 space-y-2 border-t border-zinc-700 pt-3">
-          <p className="text-[11px] text-zinc-600">
-            Tick the real-world objects the camera should recognize as this
-            target. Leave empty if it isn&apos;t camera-detectable.
+    <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 space-y-3">
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
+          <Boxes className="w-5 h-5 text-amber-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-extrabold text-white">AR tracking</h2>
+          <p className="text-xs text-zinc-500">
+            Compile reference images so Live AR recognizes your objects.
           </p>
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search objects…"
-              className="w-full pl-8 pr-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+        </div>
+      </div>
+
+      <div className="text-xs text-zinc-400 space-y-1">
+        <p>
+          {trackable.length} of {targets.length} target
+          {targets.length === 1 ? "" : "s"} have a reference image.
+          {skipped > 0 && (
+            <span className="text-amber-500"> {skipped} skipped (no image).</span>
+          )}
+        </p>
+        {bundle ? (
+          <p className="text-zinc-500">
+            Last built {new Date(bundle.updatedAt).toLocaleString()} ·{" "}
+            {builtCount} object{builtCount === 1 ? "" : "s"} in bundle.
+            {stale && (
+              <span className="text-amber-500"> Rebuild to include changes.</span>
+            )}
+          </p>
+        ) : (
+          <p className="text-zinc-600">
+            Not built yet — Live AR can&apos;t track anything until you build.
+          </p>
+        )}
+      </div>
+
+      {building && (
+        <div className="space-y-1.5">
+          <div className="h-2 w-full rounded-full bg-zinc-800 overflow-hidden">
+            <div
+              className="h-full bg-amber-500 transition-all"
+              style={{ width: `${progress}%` }}
             />
           </div>
-          <div className="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto">
-            {filtered.map((cls) => {
-              const active = selected.includes(cls);
-              return (
-                <button
-                  key={cls}
-                  type="button"
-                  onClick={() => onToggle(cls)}
-                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                    active
-                      ? "bg-amber-500 text-zinc-950"
-                      : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 border border-zinc-700"
-                  }`}
-                >
-                  {cls}
-                </button>
-              );
-            })}
-          </div>
+          <p className="text-[11px] text-zinc-500">
+            Compiling… {progress}% (this can take a minute)
+          </p>
         </div>
       )}
+
+      {error && <p className="text-xs text-red-400">{error}</p>}
+
+      <button
+        onClick={build}
+        disabled={building || trackable.length === 0}
+        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 text-zinc-950 font-bold text-sm hover:bg-amber-400 transition-colors disabled:opacity-50"
+      >
+        {building ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Boxes className="w-4 h-4" />
+        )}
+        {building
+          ? "Building…"
+          : bundle
+            ? "Rebuild AR tracking"
+            : "Build AR tracking"}
+      </button>
     </div>
   );
 }
@@ -177,14 +264,12 @@ interface TargetForm {
   name: string;
   description: string;
   content: string;
-  detectionClasses: string[];
 }
 
 const EMPTY_FORM: TargetForm = {
   name: "",
   description: "",
   content: "",
-  detectionClasses: [],
 };
 
 function TargetEditor({
@@ -202,7 +287,6 @@ function TargetEditor({
           name: target.name,
           description: target.description,
           content: target.content ?? "",
-          detectionClasses: target.detectionClasses,
         }
       : { ...EMPTY_FORM }
   );
@@ -214,14 +298,6 @@ function TargetEditor({
 
   const set = <K extends keyof TargetForm>(key: K, value: TargetForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
-
-  const toggleClass = (cls: string) =>
-    setForm((f) => ({
-      ...f,
-      detectionClasses: f.detectionClasses.includes(cls)
-        ? f.detectionClasses.filter((c) => c !== cls)
-        : [...f.detectionClasses, cls],
-    }));
 
   // Upload an image for the rich editor. Uses Convex storage when online so the
   // image is shared/persisted; falls back to an inline data URL when offline so
@@ -295,7 +371,6 @@ function TargetEditor({
         name: form.name.trim(),
         description: form.description.trim(),
         content: form.content,
-        detectionClasses: form.detectionClasses,
         imageStorageId: imageStorageId as GenericId<"_storage"> | undefined,
         referenceImage,
       };
@@ -375,15 +450,14 @@ function TargetEditor({
           </p>
         </div>
 
-        <DetectionPicker
-          selected={form.detectionClasses}
-          onToggle={toggleClass}
-        />
-
         <div>
           <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider block mb-1">
-            Image
+            Reference image (what the camera recognizes)
           </label>
+          <p className="text-[11px] text-zinc-600 mb-2">
+            Upload a clear, flat-on photo with good detail and contrast. This
+            image is both the display hero and the AR tracking target.
+          </p>
           <div className="flex items-center gap-3">
             <input
               ref={fileRef}
@@ -445,6 +519,7 @@ export default function AdminPage() {
     () => typeof window !== "undefined" && sessionStorage.getItem(AUTH_KEY) === "1"
   );
   const [targets, setTargets] = useState<TargetInfo[] | null>(null);
+  const [bundle, setBundle] = useState<ArBundle | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<TargetInfo | null>(null);
@@ -454,8 +529,13 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
     try {
-      const list = await getConvex().query(api.targets.list, {});
+      const convex = getConvex();
+      const [list, arBundle] = await Promise.all([
+        convex.query(api.targets.list, {}),
+        convex.query(api.targets.getArBundle, {}),
+      ]);
       setTargets(list);
+      setBundle(arBundle as ArBundle | null);
     } catch (e) {
       console.error(e);
       setError(e instanceof Error ? e.message : "Failed to load targets");
@@ -573,6 +653,14 @@ export default function AdminPage() {
           </button>
         )}
 
+        {!creating && !editing && targets && targets.length > 0 && (
+          <BuildTrackingPanel
+            targets={targets}
+            bundle={bundle}
+            onBuilt={reload}
+          />
+        )}
+
         {targets === null ? (
           <p className="text-sm text-zinc-500 text-center py-10">Loading…</p>
         ) : targets.length === 0 ? (
@@ -604,7 +692,19 @@ export default function AdminPage() {
                     {target.name}
                   </h3>
                   <p className="text-[11px] text-zinc-500 mt-0.5">
-                    Detects: {target.detectionClasses.join(", ") || "—"}
+                    {target.imageUrl ? (
+                      bundle?.targetIds.includes(target._id) ? (
+                        <span className="text-emerald-500">In AR bundle</span>
+                      ) : (
+                        <span className="text-amber-500">
+                          Not built — rebuild AR tracking
+                        </span>
+                      )
+                    ) : (
+                      <span className="text-zinc-600">
+                        No reference image — not trackable
+                      </span>
+                    )}
                   </p>
                   <p className="text-[11px] text-zinc-600">
                     updated {new Date(target.updatedAt).toLocaleString()}

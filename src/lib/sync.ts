@@ -2,12 +2,13 @@
 // caches everything in IndexedDB so the app works fully offline afterwards.
 
 import { api } from "../../convex/_generated/api";
-import type { TargetInfo } from "@/lib/types";
+import type { ArBundle, TargetInfo } from "@/lib/types";
 import { getConvex } from "@/lib/convex";
 import { getMeta, putImage, putTargets, setMeta } from "@/lib/db";
 import { extractImageUrls } from "@/lib/html-images";
 
 const LAST_SYNC_KEY = "lastSyncedAt";
+const BUNDLE_META_KEY = "arBundle";
 
 // Fetch a remote image URL and store its blob for offline use. data:/blob:
 // URLs are self-contained (or session-scoped) and skipped.
@@ -40,6 +41,21 @@ export async function syncTargets(): Promise<TargetInfo[]> {
 
   await putTargets(remote);
   await setMeta(LAST_SYNC_KEY, Date.now());
+
+  // Cache the compiled MindAR tracking bundle (the .mind binary) so live AR
+  // works offline. Non-fatal: a missing/unbuilt bundle just leaves AR unbuilt.
+  try {
+    const bundle = (await convex.query(
+      api.targets.getArBundle,
+      {}
+    )) as ArBundle | null;
+    if (bundle?.mindUrl) {
+      await cacheImage(bundle.mindUrl);
+      await setMeta(BUNDLE_META_KEY, bundle);
+    }
+  } catch {
+    // Ignore — the bundle refreshes again next sync / when AR opens.
+  }
 
   return remote;
 }

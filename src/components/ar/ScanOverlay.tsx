@@ -25,7 +25,7 @@ export function ScanOverlay() {
       <div className="absolute bottom-8 left-6 right-6 flex justify-center">
         <div className="px-5 py-3 rounded-2xl bg-zinc-950/80 backdrop-blur-xl border border-zinc-800 text-xs text-zinc-300 text-center shadow-2xl leading-relaxed">
           <span className="font-bold text-amber-500 block mb-1">
-            Point at mouse or bottle
+            Point at a marked object
           </span>
           Swipe up for details after detection.
         </div>
