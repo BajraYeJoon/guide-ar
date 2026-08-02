@@ -11,9 +11,15 @@ export default defineSchema({
   targets: defineTable({
     // Human-readable identity
     name: v.string(),
+    // Short summary shown on cards and the AR lock sheet.
     description: v.string(),
-    history: v.string(),
-    specs: v.array(specValidator),
+    // Rich HTML body authored in the admin editor (blog-style, may embed
+    // <img> tags). This is the primary content shown on the detail page.
+    content: v.optional(v.string()),
+    // Legacy fields kept optional so pre-existing documents still validate.
+    // New targets author everything through `content` instead.
+    history: v.optional(v.string()),
+    specs: v.optional(v.array(specValidator)),
 
     // COCO-SSD class names that should resolve to this target during live AR
     // detection (e.g. ["mouse"] or ["bottle", "cup"]). This is what makes an

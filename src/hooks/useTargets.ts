@@ -5,6 +5,7 @@ import type { TargetInfo } from "@/lib/types";
 import { STATIC_TARGETS } from "@/data/targets";
 import { getImage, getTargets } from "@/lib/db";
 import { getLastSyncedAt, syncTargets } from "@/lib/sync";
+import { extractImageUrls, rewriteImageUrls } from "@/lib/html-images";
 
 export type SyncStatus = "loading" | "online" | "offline";
 
@@ -21,21 +22,50 @@ interface UseTargetsReturn {
 let syncInFlight: Promise<void> | null = null;
 
 // Swap remote image URLs for local blob object URLs when the blob exists in
-// IndexedDB (this is what makes images work offline). Returns the list plus
-// the object URLs it created so callers can revoke them.
+// IndexedDB (this is what makes images work offline). Covers both the hero
+// image and any images embedded in the rich `content` HTML. Returns the list
+// plus the object URLs it created so callers can revoke them.
 async function resolveImages(targets: TargetInfo[]): Promise<{
   resolved: TargetInfo[];
   objectUrls: string[];
 }> {
   const objectUrls: string[] = [];
+
+  // Resolve a single remote URL to an offline blob URL when cached.
+  const toOffline = async (url: string): Promise<string> => {
+    if (!url || url.startsWith("data:") || url.startsWith("blob:")) return url;
+    const blob = await getImage(url);
+    if (!blob) return url;
+    const objectUrl = URL.createObjectURL(blob);
+    objectUrls.push(objectUrl);
+    return objectUrl;
+  };
+
   const resolved = await Promise.all(
     targets.map(async (target) => {
-      if (!target.imageUrl) return target;
-      const blob = await getImage(target.imageUrl);
-      if (!blob) return target;
-      const objectUrl = URL.createObjectURL(blob);
-      objectUrls.push(objectUrl);
-      return { ...target, imageUrl: objectUrl };
+      let next = target;
+
+      if (target.imageUrl) {
+        const offline = await toOffline(target.imageUrl);
+        if (offline !== target.imageUrl) next = { ...next, imageUrl: offline };
+      }
+
+      if (target.content) {
+        // Pre-resolve each content image URL, then rewrite synchronously.
+        const map = new Map<string, string>();
+        await Promise.all(
+          extractImageUrls(target.content).map(async (url) => {
+            map.set(url, await toOffline(url));
+          })
+        );
+        const content = rewriteImageUrls(
+          target.content,
+          (url) => map.get(url) ?? url
+        );
+        if (content !== target.content) next = { ...next, content };
+      }
+
+      return next;
     })
   );
   return { resolved, objectUrls };

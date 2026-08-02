@@ -5,27 +5,36 @@ import { api } from "../../convex/_generated/api";
 import type { TargetInfo } from "@/lib/types";
 import { getConvex } from "@/lib/convex";
 import { getMeta, putImage, putTargets, setMeta } from "@/lib/db";
+import { extractImageUrls } from "@/lib/html-images";
 
 const LAST_SYNC_KEY = "lastSyncedAt";
+
+// Fetch a remote image URL and store its blob for offline use. data:/blob:
+// URLs are self-contained (or session-scoped) and skipped.
+async function cacheImage(url: string): Promise<void> {
+  if (!url || url.startsWith("data:") || url.startsWith("blob:")) return;
+  try {
+    const response = await fetch(url);
+    if (response.ok) await putImage(url, await response.blob());
+  } catch {
+    // Skip images that fail; the target itself is still cached.
+  }
+}
 
 export async function syncTargets(): Promise<TargetInfo[]> {
   const convex = getConvex();
 
   const remote = await convex.query(api.targets.list, {});
 
-  // Cache every image as a blob so it renders offline.
+  // Cache the hero image plus every image embedded in the rich content so the
+  // whole detail page renders offline.
   await Promise.all(
-    remote.map(async (target) => {
-      if (target.imageUrl) {
-        try {
-          const response = await fetch(target.imageUrl);
-          if (response.ok) {
-            await putImage(target.imageUrl, await response.blob());
-          }
-        } catch {
-          // Skip images that fail; the target itself is still cached.
-        }
-      }
+    remote.flatMap((target) => {
+      const urls = new Set<string>();
+      if (target.imageUrl) urls.add(target.imageUrl);
+      if (target.content)
+        for (const u of extractImageUrls(target.content)) urls.add(u);
+      return [...urls].map(cacheImage);
     })
   );
 

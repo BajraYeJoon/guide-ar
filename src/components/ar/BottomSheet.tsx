@@ -12,8 +12,6 @@ interface LockSheetProps {
 export function LockSheet({ foundTarget, onViewDetails }: LockSheetProps) {
   if (!foundTarget) return null;
 
-  const previewSpecs = foundTarget.specs.slice(0, 3);
-
   return (
     <div className="absolute bottom-0 left-0 right-0 z-50 p-4 pb-6 animate-slideUp">
       <button
@@ -36,22 +34,12 @@ export function LockSheet({ foundTarget, onViewDetails }: LockSheetProps) {
           <ChevronRight className="w-5 h-5 text-zinc-500 flex-shrink-0" />
         </div>
 
-        {/* Preview specs */}
-        {previewSpecs.length > 0 && (
-          <div className="px-4 pb-4 flex gap-2">
-            {previewSpecs.map((spec, i) => (
-              <div
-                key={i}
-                className="flex-1 p-2 rounded-lg bg-zinc-800/60 border border-zinc-700/50"
-              >
-                <div className="text-[8px] text-zinc-500 uppercase font-medium">
-                  {spec.label}
-                </div>
-                <div className="text-[10px] font-bold text-zinc-200 mt-0.5 truncate">
-                  {spec.value}
-                </div>
-              </div>
-            ))}
+        {/* Short description preview */}
+        {foundTarget.description && (
+          <div className="px-4 pb-4">
+            <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2">
+              {foundTarget.description}
+            </p>
           </div>
         )}
 

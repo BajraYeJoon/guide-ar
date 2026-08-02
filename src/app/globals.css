@@ -131,3 +131,74 @@ body.a-body {
   overflow: hidden !important;
 }
 
+/* ---- Rich content ("prose") rendering ---------------------------------- */
+/* Styles the admin-authored HTML shown on detail/info views and inside the
+   editor. Kept intentionally small to match the app's dark aesthetic. */
+.prose-guide {
+  color: #d4d4d8; /* zinc-300 */
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+.prose-guide > :first-child {
+  margin-top: 0;
+}
+.prose-guide p {
+  margin: 0 0 0.9rem;
+}
+.prose-guide h2 {
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin: 1.4rem 0 0.6rem;
+}
+.prose-guide h3 {
+  color: #fafafa;
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 1.2rem 0 0.5rem;
+}
+.prose-guide ul,
+.prose-guide ol {
+  margin: 0 0 0.9rem;
+  padding-left: 1.4rem;
+}
+.prose-guide ul {
+  list-style: disc;
+}
+.prose-guide ol {
+  list-style: decimal;
+}
+.prose-guide li {
+  margin: 0.25rem 0;
+}
+.prose-guide a {
+  color: #f59e0b; /* amber-500 */
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-guide blockquote {
+  border-left: 3px solid rgba(245, 158, 11, 0.5);
+  padding-left: 1rem;
+  margin: 0 0 0.9rem;
+  color: #a1a1aa; /* zinc-400 */
+  font-style: italic;
+}
+.prose-guide img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  margin: 0.75rem 0;
+  border: 1px solid #27272a; /* zinc-800 */
+}
+.prose-guide strong {
+  color: #fafafa;
+  font-weight: 700;
+}
+
+/* Placeholder for the empty rich editor surface. */
+.rich-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #71717a; /* zinc-500 */
+  pointer-events: none;
+}
+

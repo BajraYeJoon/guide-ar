@@ -54,12 +54,22 @@ export const generateUploadUrl = mutation({
   },
 });
 
+// Resolve a freshly-uploaded storage id to a servable URL. Used by the admin
+// rich editor to embed inline images immediately after upload.
+export const imageUrl = query({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, { storageId }) => {
+    return await ctx.storage.getUrl(storageId);
+  },
+});
+
 export const create = mutation({
   args: {
     name: v.string(),
     description: v.string(),
-    history: v.string(),
-    specs: v.array(specValidator),
+    content: v.optional(v.string()),
+    history: v.optional(v.string()),
+    specs: v.optional(v.array(specValidator)),
     detectionClasses: v.array(v.string()),
     imageStorageId: v.optional(v.id("_storage")),
     referenceImage: v.optional(v.string()),
@@ -74,8 +84,9 @@ export const update = mutation({
     id: v.id("targets"),
     name: v.string(),
     description: v.string(),
-    history: v.string(),
-    specs: v.array(specValidator),
+    content: v.optional(v.string()),
+    history: v.optional(v.string()),
+    specs: v.optional(v.array(specValidator)),
     detectionClasses: v.array(v.string()),
     imageStorageId: v.optional(v.id("_storage")),
     referenceImage: v.optional(v.string()),

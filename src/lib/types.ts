@@ -9,9 +9,14 @@ export interface TargetInfo {
   /** Convex document id (`_id`) or a stable fallback id for static data. */
   _id: string;
   name: string;
+  /** Short summary shown on cards and the AR lock sheet. */
   description: string;
-  history: string;
-  specs: TargetSpec[];
+  /** Rich HTML body authored in the admin editor (may embed <img> tags). */
+  content?: string;
+  /** Legacy long-form text; superseded by `content` for new targets. */
+  history?: string;
+  /** Legacy key/value facts; superseded by `content` for new targets. */
+  specs?: TargetSpec[];
   /** COCO-SSD class names that resolve to this target during live AR. */
   detectionClasses: string[];
   /** Convex file storage id, when the image is stored in Convex. */

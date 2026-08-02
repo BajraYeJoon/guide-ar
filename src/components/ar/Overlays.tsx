@@ -1,41 +1,19 @@
 "use client";
 
 import React from "react";
-import { Camera, Loader2, Radio } from "lucide-react";
+import { Camera, Loader2 } from "lucide-react";
 
-export function LoadingOverlay() {
+/**
+ * Small, non-blocking indicator shown while the detection model warms up.
+ * Unlike a full-screen loader, the live camera is already visible behind it,
+ * so the AR view feels instant.
+ */
+export function PreparingChip() {
   return (
-    <div className="absolute inset-0 bg-zinc-950 z-20 flex flex-col items-center justify-center text-center p-6 backdrop-blur-sm">
-      <Loader2 className="w-12 h-12 text-amber-500 animate-spin mb-4" />
-      <h1 className="text-xl font-extrabold text-white">Loading AI Engine...</h1>
-      <p className="text-xs text-zinc-400 mt-2 max-w-xs leading-relaxed">
-        Downloading detection model. This may take a moment on first load.
-      </p>
-      <div className="mt-4 w-48 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-amber-500 rounded-full animate-pulse"
-          style={{ width: "60%" }}
-        />
-      </div>
-    </div>
-  );
-}
-
-export function ReadyOverlay() {
-  return (
-    <div className="absolute inset-0 bg-zinc-950 z-20 flex flex-col items-center justify-center text-center p-6">
-      <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mb-4">
-        <Radio className="w-8 h-8 text-emerald-500" />
-      </div>
-      <h1 className="text-xl font-extrabold text-white mb-2">
-        AR Engine Ready!
-      </h1>
-      <p className="text-xs text-zinc-400 max-w-xs leading-relaxed mb-6">
-        Camera is starting. Point at a mouse or bottle to detect.
-      </p>
-      <div className="flex items-center gap-2 text-xs text-zinc-500">
-        <Loader2 className="w-4 h-4 animate-spin" />
-        Starting camera...
+    <div className="absolute inset-x-0 bottom-24 z-20 pointer-events-none flex justify-center">
+      <div className="px-4 py-2.5 rounded-full bg-zinc-950/80 backdrop-blur-xl border border-zinc-800 text-xs font-medium text-zinc-300 flex items-center gap-2 shadow-lg">
+        <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
+        Preparing detection…
       </div>
     </div>
   );
@@ -47,7 +25,7 @@ interface CameraDeniedOverlayProps {
 
 export function CameraDeniedOverlay({ onBack }: CameraDeniedOverlayProps) {
   return (
-    <div className="absolute inset-0 bg-zinc-950 z-20 flex flex-col items-center justify-center text-center p-6">
+    <div className="absolute inset-0 bg-zinc-950 z-40 flex flex-col items-center justify-center text-center p-6">
       <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mb-4">
         <Camera className="w-6 h-6" />
       </div>
@@ -87,16 +65,16 @@ export function StatusBar({ status, onBack }: StatusBarProps) {
             status === "found"
               ? "bg-emerald-500"
               : status === "scanning"
-              ? "bg-amber-500 animate-pulse"
-              : status === "ready"
-              ? "bg-blue-500"
-              : "bg-zinc-500"
+                ? "bg-amber-500 animate-pulse"
+                : status === "camera-denied"
+                  ? "bg-red-500"
+                  : "bg-blue-500 animate-pulse"
           }`}
         />
-        {status === "loading" && "Loading engine..."}
-        {status === "ready" && "Engine ready!"}
+        {status === "loading" && "Preparing…"}
         {status === "camera-denied" && "Camera required"}
-        {status === "scanning" && "Scanning..."}
+        {status === "scanning" && "Scanning…"}
+        {status === "found" && "Object found!"}
       </div>
     </div>
   );

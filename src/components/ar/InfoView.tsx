@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { Radio, RefreshCw } from "lucide-react";
 import type { TargetInfo } from "@/lib/types";
 import type { SyncStatus } from "@/hooks/useTargets";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 interface InfoViewProps {
   targets: TargetInfo[];
@@ -130,37 +131,8 @@ export function InfoView({
           </div>
         </div>
 
-        {/* Specs grid */}
-        <div>
-          <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider mb-3">
-            Specifications
-          </h3>
-          <div className="grid grid-cols-3 gap-2">
-            {selectedTarget.specs.map((spec, i) => (
-              <div
-                key={i}
-                className="p-3 rounded-xl bg-zinc-900 border border-zinc-800"
-              >
-                <span className="text-[10px] text-zinc-500 uppercase font-medium block">
-                  {spec.label}
-                </span>
-                <span className="text-xs font-bold text-zinc-200 mt-1 block">
-                  {spec.value}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* History */}
-        <div>
-          <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider mb-3">
-            History
-          </h3>
-          <p className="text-sm text-zinc-400 leading-relaxed">
-            {selectedTarget.history}
-          </p>
-        </div>
+        {/* Rich content (with legacy history/specs fallback) */}
+        <TargetBody target={selectedTarget} />
 
         {/* Instructions */}
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-5">
@@ -176,5 +148,58 @@ export function InfoView({
         </div>
       </div>
     </div>
+  );
+}
+
+// Renders a target's rich HTML content, falling back to the legacy
+// history/specs fields for targets authored before the rich editor.
+function TargetBody({ target }: { target: TargetInfo }) {
+  const html = useMemo(
+    () => (target.content ? sanitizeHtml(target.content) : ""),
+    [target.content]
+  );
+
+  if (html) {
+    return (
+      <div className="prose-guide" dangerouslySetInnerHTML={{ __html: html }} />
+    );
+  }
+
+  const specs = target.specs ?? [];
+  return (
+    <>
+      {specs.length > 0 && (
+        <div>
+          <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider mb-3">
+            Specifications
+          </h3>
+          <div className="grid grid-cols-3 gap-2">
+            {specs.map((spec, i) => (
+              <div
+                key={i}
+                className="p-3 rounded-xl bg-zinc-900 border border-zinc-800"
+              >
+                <span className="text-[10px] text-zinc-500 uppercase font-medium block">
+                  {spec.label}
+                </span>
+                <span className="text-xs font-bold text-zinc-200 mt-1 block">
+                  {spec.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {target.history && (
+        <div>
+          <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider mb-3">
+            History
+          </h3>
+          <p className="text-sm text-zinc-400 leading-relaxed">
+            {target.history}
+          </p>
+        </div>
+      )}
+    </>
   );
 }

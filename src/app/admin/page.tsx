@@ -1,15 +1,17 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
+  ChevronDown,
   ImagePlus,
   Lock,
   LogOut,
   Plus,
   RefreshCw,
   Save,
+  Search,
   Sprout,
   Trash2,
   X,
@@ -18,6 +20,8 @@ import type { GenericId } from "convex/values";
 import { api } from "../../../convex/_generated/api";
 import { getConvex } from "@/lib/convex";
 import type { TargetInfo } from "@/lib/types";
+import { RichEditor } from "@/components/ar/RichEditor";
+import { COCO_CLASSES } from "@/lib/coco-classes";
 
 const ADMIN_PASSWORD =
   process.env.NEXT_PUBLIC_ADMIN_PASSWORD ?? "guide-admin-2026";
@@ -85,22 +89,102 @@ function LoginGate({ onAuthed }: { onAuthed: () => void }) {
   );
 }
 
+// ------------------------------------------------------- detection picker
+
+// Friendly multi-select over the 80 COCO classes. Replaces the old hand-typed
+// comma-separated "detection classes" field so admins just tick what the
+// camera should recognize.
+function DetectionPicker({
+  selected,
+  onToggle,
+}: {
+  selected: string[];
+  onToggle: (cls: string) => void;
+}) {
+  const [open, setOpen] = useState(selected.length > 0);
+  const [q, setQ] = useState("");
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return needle
+      ? COCO_CLASSES.filter((c) => c.includes(needle))
+      : COCO_CLASSES;
+  }, [q]);
+
+  return (
+    <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-3 py-2.5 text-left"
+      >
+        <span className="text-xs font-medium text-zinc-400">
+          Advanced · camera detection
+          {selected.length > 0 && (
+            <span className="ml-2 text-amber-500">
+              {selected.length} selected
+            </span>
+          )}
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 text-zinc-500 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div className="px-3 pb-3 space-y-2 border-t border-zinc-700 pt-3">
+          <p className="text-[11px] text-zinc-600">
+            Tick the real-world objects the camera should recognize as this
+            target. Leave empty if it isn&apos;t camera-detectable.
+          </p>
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search objects…"
+              className="w-full pl-8 pr-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+            />
+          </div>
+          <div className="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto">
+            {filtered.map((cls) => {
+              const active = selected.includes(cls);
+              return (
+                <button
+                  key={cls}
+                  type="button"
+                  onClick={() => onToggle(cls)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                    active
+                      ? "bg-amber-500 text-zinc-950"
+                      : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 border border-zinc-700"
+                  }`}
+                >
+                  {cls}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ------------------------------------------------------------- target editor
 
 interface TargetForm {
   name: string;
   description: string;
-  history: string;
-  specs: { label: string; value: string }[];
-  detectionClasses: string;
+  content: string;
+  detectionClasses: string[];
 }
 
 const EMPTY_FORM: TargetForm = {
   name: "",
   description: "",
-  history: "",
-  specs: [{ label: "", value: "" }],
-  detectionClasses: "",
+  content: "",
+  detectionClasses: [],
 };
 
 function TargetEditor({
@@ -117,11 +201,10 @@ function TargetEditor({
       ? {
           name: target.name,
           description: target.description,
-          history: target.history,
-          specs: target.specs.map((s) => ({ ...s })),
-          detectionClasses: target.detectionClasses.join(", "),
+          content: target.content ?? "",
+          detectionClasses: target.detectionClasses,
         }
-      : { ...EMPTY_FORM, specs: [{ label: "", value: "" }] }
+      : { ...EMPTY_FORM }
   );
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -132,20 +215,43 @@ function TargetEditor({
   const set = <K extends keyof TargetForm>(key: K, value: TargetForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
-  const setSpec = (index: number, key: "label" | "value", value: string) =>
+  const toggleClass = (cls: string) =>
     setForm((f) => ({
       ...f,
-      specs: f.specs.map((s, i) => (i === index ? { ...s, [key]: value } : s)),
+      detectionClasses: f.detectionClasses.includes(cls)
+        ? f.detectionClasses.filter((c) => c !== cls)
+        : [...f.detectionClasses, cls],
     }));
 
-  const addSpec = () =>
-    setForm((f) => ({ ...f, specs: [...f.specs, { label: "", value: "" }] }));
-
-  const removeSpec = (index: number) =>
-    setForm((f) => ({
-      ...f,
-      specs: f.specs.filter((_, i) => i !== index),
-    }));
+  // Upload an image for the rich editor. Uses Convex storage when online so the
+  // image is shared/persisted; falls back to an inline data URL when offline so
+  // authoring never breaks (sync will still cache real URLs later).
+  const uploadInlineImage = useCallback(async (file: File): Promise<string> => {
+    try {
+      const convex = getConvex();
+      const uploadUrl = await convex.mutation(api.targets.generateUploadUrl, {});
+      const res = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!res.ok) throw new Error("upload failed");
+      const { storageId } = (await res.json()) as {
+        storageId: GenericId<"_storage">;
+      };
+      const url = await convex.query(api.targets.imageUrl, { storageId });
+      if (!url) throw new Error("no url");
+      return url;
+    } catch {
+      // Offline / upload failure — embed as a data URL so authoring continues.
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    }
+  }, []);
 
   const handleFile = (file: File | null) => {
     setImage(file);
@@ -164,11 +270,6 @@ function TargetEditor({
     setError(null);
     try {
       const convex = getConvex();
-      const specs = form.specs.filter((s) => s.label.trim() && s.value.trim());
-      const detectionClasses = form.detectionClasses
-        .split(",")
-        .map((c) => c.trim().toLowerCase())
-        .filter(Boolean);
 
       let imageStorageId: string | undefined = target?.imageStorageId ?? undefined;
       let referenceImage: string | undefined = target?.referenceImage ?? undefined;
@@ -193,9 +294,8 @@ function TargetEditor({
       const args = {
         name: form.name.trim(),
         description: form.description.trim(),
-        history: form.history.trim(),
-        specs,
-        detectionClasses,
+        content: form.content,
+        detectionClasses: form.detectionClasses,
         imageStorageId: imageStorageId as GenericId<"_storage"> | undefined,
         referenceImage,
       };
@@ -249,83 +349,36 @@ function TargetEditor({
 
         <div>
           <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider block mb-1">
-            Description
+            Short description
           </label>
           <textarea
             className={`${inputClass} resize-none`}
             rows={2}
             value={form.description}
             onChange={(e) => set("description", e.target.value)}
-            placeholder="Short description shown under the image"
+            placeholder="One-line summary shown on cards and the AR sheet"
           />
         </div>
 
         <div>
           <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider block mb-1">
-            History
+            Content
           </label>
-          <textarea
-            className={`${inputClass} resize-none`}
-            rows={4}
-            value={form.history}
-            onChange={(e) => set("history", e.target.value)}
-            placeholder="Longer history / background text"
-          />
-        </div>
-
-        <div>
-          <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider block mb-1">
-            Detection classes (COCO-SSD, comma separated)
-          </label>
-          <input
-            className={inputClass}
-            value={form.detectionClasses}
-            onChange={(e) => set("detectionClasses", e.target.value)}
-            placeholder="e.g. mouse, keyboard"
+          <RichEditor
+            value={form.content}
+            onChange={(html) => set("content", html)}
+            onUploadImage={uploadInlineImage}
           />
           <p className="text-[11px] text-zinc-600 mt-1">
-            Class names the camera recognizes to resolve to this target.
+            Blog-style body with headings, lists, and images. Shown on the
+            detail page.
           </p>
         </div>
 
-        <div>
-          <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider block mb-1">
-            Specifications
-          </label>
-          <div className="space-y-2">
-            {form.specs.map((spec, i) => (
-              <div key={i} className="flex gap-2">
-                <input
-                  className={inputClass}
-                  value={spec.label}
-                  onChange={(e) => setSpec(i, "label", e.target.value)}
-                  placeholder="Label"
-                />
-                <input
-                  className={inputClass}
-                  value={spec.value}
-                  onChange={(e) => setSpec(i, "value", e.target.value)}
-                  placeholder="Value"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeSpec(i)}
-                  disabled={form.specs.length === 1}
-                  className="px-2.5 rounded-lg bg-zinc-800 hover:bg-red-500/20 text-zinc-400 hover:text-red-400 transition-colors disabled:opacity-30"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={addSpec}
-            className="mt-2 flex items-center gap-1.5 text-xs font-medium text-amber-500 hover:text-amber-400"
-          >
-            <Plus className="w-3.5 h-3.5" /> Add spec
-          </button>
-        </div>
+        <DetectionPicker
+          selected={form.detectionClasses}
+          onToggle={toggleClass}
+        />
 
         <div>
           <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider block mb-1">
@@ -551,11 +604,10 @@ export default function AdminPage() {
                     {target.name}
                   </h3>
                   <p className="text-[11px] text-zinc-500 mt-0.5">
-                    Classes: {target.detectionClasses.join(", ") || "—"}
+                    Detects: {target.detectionClasses.join(", ") || "—"}
                   </p>
                   <p className="text-[11px] text-zinc-600">
-                    {target.specs.length} specs · updated{" "}
-                    {new Date(target.updatedAt).toLocaleString()}
+                    updated {new Date(target.updatedAt).toLocaleString()}
                   </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
