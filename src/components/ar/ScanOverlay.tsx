@@ -27,7 +27,8 @@ export function ScanOverlay() {
           <span className="font-bold text-amber-500 block mb-1">
             Point at a marked object
           </span>
-          Swipe up for details after detection.
+          Show the printed card or flat image, fill the frame, hold steady
+          2–3 seconds.
         </div>
       </div>
     </div>

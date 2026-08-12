@@ -22,6 +22,15 @@ import { getConvex } from "@/lib/convex";
 import type { ArBundle, TargetInfo } from "@/lib/types";
 import { RichEditor } from "@/components/ar/RichEditor";
 import { loadMindARCompiler } from "@/lib/mindar-engine";
+import {
+  analyzeImage,
+  buildArCard,
+  canvasToImageEl,
+  downloadBlob,
+  enhanceForTracking,
+  loadTargetImage,
+  type TargetAnalysis,
+} from "@/lib/ar-targets";
 
 const ADMIN_PASSWORD =
   process.env.NEXT_PUBLIC_ADMIN_PASSWORD ?? "guide-admin-2026";
@@ -91,19 +100,6 @@ function LoginGate({ onAuthed }: { onAuthed: () => void }) {
 
 // ------------------------------------------------------- build AR tracking
 
-// Loads an image URL into a decoded HTMLImageElement. crossOrigin="anonymous"
-// is required so the pixels are readable by MindAR's compiler (Convex serves
-// the images with permissive CORS).
-function loadImageEl(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`Could not load image: ${url}`));
-    img.src = url;
-  });
-}
-
 // Compiles every target's reference image into a single MindAR `.mind` bundle
 // and uploads it to Convex. The anchor order in the bundle is exactly the order
 // of `trackable` here, which we persist as `targetIds` so the runtime can map
@@ -120,6 +116,10 @@ function BuildTrackingPanel({
   const [building, setBuilding] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [useFrame, setUseFrame] = useState(true);
+  const [analysis, setAnalysis] = useState<
+    Record<string, TargetAnalysis>
+  >({});
 
   // Only targets that have a usable reference image can be tracked.
   const trackable = useMemo(
@@ -127,6 +127,29 @@ function BuildTrackingPanel({
     [targets]
   );
   const skipped = targets.length - trackable.length;
+
+  // Grade each target image so weak photos (low contrast / blank space) are
+  // caught before they silently fail to track.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const map: Record<string, TargetAnalysis> = {};
+      for (const t of trackable) {
+        try {
+          const img = await loadTargetImage(t.imageUrl as string);
+          if (cancelled) return;
+          map[t._id] = analyzeImage(img);
+        } catch {
+          // keep going; per-target grading is best-effort
+        }
+      }
+      if (!cancelled) setAnalysis(map);
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [trackable]);
 
   const build = async () => {
     setBuilding(true);
@@ -139,8 +162,15 @@ function BuildTrackingPanel({
         );
       }
 
+      // Weak photos are boosted (contrast stretch) and wrapped in a
+      // high-frequency checkerboard frame so the tracker always has edges to
+      // lock onto — see ar-targets.ts.
       const images = await Promise.all(
-        trackable.map((t) => loadImageEl(t.imageUrl as string))
+        trackable.map(async (t) => {
+          const img = await loadTargetImage(t.imageUrl as string);
+          const canvas = enhanceForTracking(img, { frame: useFrame });
+          return canvasToImageEl(canvas);
+        })
       );
 
       const { Compiler } = await loadMindARCompiler();
@@ -181,9 +211,40 @@ function BuildTrackingPanel({
     }
   };
 
+  // Printable 4:3 test cards — the guaranteed-trackable way to demo Live AR
+  // (print the card, point the camera at it, it locks).
+  const downloadCards = async () => {
+    setError(null);
+    for (const t of trackable) {
+      try {
+        const img = await loadTargetImage(t.imageUrl as string);
+        const blob = await buildArCard(img, t.name);
+        const slug = t.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        downloadBlob(blob, `ar-card-${slug}.png`);
+      } catch (e) {
+        console.error(e);
+        setError(e instanceof Error ? e.message : "Card export failed");
+      }
+    }
+  };
+
   const builtCount = bundle?.targetIds.length ?? 0;
   const stale =
     bundle !== null && builtCount !== trackable.length && !building;
+
+  const analysisLabel = (a: TargetAnalysis) =>
+    a.label === "poor"
+      ? "Weak — needs a better photo"
+      : a.label === "ok"
+        ? "OK — frame recommended"
+        : "Strong — tracks well";
+
+  const analysisColor = (a: TargetAnalysis) =>
+    a.label === "poor"
+      ? "text-red-400"
+      : a.label === "ok"
+        ? "text-amber-400"
+        : "text-emerald-400";
 
   return (
     <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 space-y-3">
@@ -207,6 +268,23 @@ function BuildTrackingPanel({
             <span className="text-amber-500"> {skipped} skipped (no image).</span>
           )}
         </p>
+        <ul className="space-y-0.5">
+          {trackable.map((t) => {
+            const a = analysis[t._id];
+            return (
+              <li key={t._id} className="flex items-center gap-2">
+                <span className="text-zinc-300 truncate max-w-[60%]">{t.name}</span>
+                {a ? (
+                  <span className={`font-semibold ${analysisColor(a)}`}>
+                    {analysisLabel(a)}
+                  </span>
+                ) : (
+                  <span className="text-zinc-600">grading…</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
         {bundle ? (
           <p className="text-zinc-500">
             Last built {new Date(bundle.updatedAt).toLocaleString()} ·{" "}
@@ -221,6 +299,16 @@ function BuildTrackingPanel({
           </p>
         )}
       </div>
+
+      <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={useFrame}
+          onChange={(e) => setUseFrame(e.target.checked)}
+          className="accent-amber-500 w-3.5 h-3.5"
+        />
+        Add tracking frame (recommended — boosts weak photos)
+      </label>
 
       {building && (
         <div className="space-y-1.5">
@@ -253,6 +341,14 @@ function BuildTrackingPanel({
           : bundle
             ? "Rebuild AR tracking"
             : "Build AR tracking"}
+      </button>
+      <button
+        onClick={downloadCards}
+        disabled={building || trackable.length === 0}
+        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold text-sm hover:bg-zinc-700 transition-colors disabled:opacity-50"
+      >
+        <ImagePlus className="w-4 h-4" />
+        Download AR test cards
       </button>
     </div>
   );

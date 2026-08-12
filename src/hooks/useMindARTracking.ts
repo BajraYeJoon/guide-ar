@@ -65,6 +65,10 @@ export function useMindARTracking(
           uiScanning: "no",
           uiLoading: "no",
           uiError: "no",
+          // Lock on fast (1 warmup frame), hold through brief occlusions.
+          maxTrack: Math.min(4, targetIds.length),
+          warmupTolerance: 1,
+          missTolerance: 10,
         });
         mindarRef.current = instance;
 
